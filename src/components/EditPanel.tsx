@@ -4,6 +4,7 @@ import { generateImage, enhancePrompt } from '../gemini';
 import { saveImageBlob } from '../db';
 import { SettingsBar } from './SettingsBar';
 import { Lightbox } from './Lightbox';
+import { ImageEditor } from './ImageEditor';
 import type { GenerationSettings, GeneratedImage } from '../types';
 
 export function EditPanel() {
@@ -16,6 +17,8 @@ export function EditPanel() {
   const [variationResults, setVariationResults] = useState<GeneratedImage[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [selectionMask, setSelectionMask] = useState<string | null>(null);
+  const [useSelectionTool, setUseSelectionTool] = useState(false);
   const abortControllers = useRef<AbortController[]>([]);
 
   const selectedImage = state.selectedImageId
@@ -69,6 +72,7 @@ export function EditPanel() {
           settings,
           state.modelId,
           selectedImage,
+          selectionMask || undefined,
           controller.signal
         );
 
@@ -121,6 +125,7 @@ export function EditPanel() {
           settings,
           state.modelId,
           selectedImage,
+          undefined,
           controller.signal
         );
 
@@ -152,7 +157,7 @@ export function EditPanel() {
   return (
     <div className="flex-1 flex h-full overflow-hidden">
       {/* Left: Source Image Selection */}
-      <div className="w-72 border-r border-border flex flex-col overflow-hidden shrink-0">
+      <div className="w-80 border-r border-border flex flex-col overflow-hidden shrink-0">
         <div className="p-3 border-b border-border">
           <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">
             Select Source Image
@@ -166,7 +171,7 @@ export function EditPanel() {
               then come back to edit them.
             </p>
           ) : (
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 gap-3">
               {projectImages.map((img) => (
                 <div
                   key={img.id}
@@ -198,33 +203,61 @@ export function EditPanel() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {selectedImage ? (
           <>
-            {/* Preview */}
-            <div className="flex-1 flex items-center justify-center p-6 overflow-hidden bg-surface">
-              <div className="relative max-w-full max-h-full">
-                <img
-                  src={selectedImage.dataUrl}
-                  alt={selectedImage.prompt}
-                  className="max-w-full max-h-[50vh] rounded-xl object-contain border border-border cursor-pointer hover:border-border-focus transition-colors"
-                  onClick={() => setLightboxImage(selectedImage.id)}
-                  title="Click to view full size"
-                />
-                <div className="mt-2">
-                  <p className="text-xs text-text-muted truncate">{selectedImage.prompt}</p>
-                  <p className="text-[10px] text-text-dim">
-                    {selectedImage.settings.aspectRatio} &middot; {selectedImage.settings.imageSize}
-                    {selectedImage.parentImageId && ' &middot; Edited'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
             {/* Settings */}
-            <div className="px-4 py-2 border-t border-border">
+            <div className="px-4 py-2 border-b border-border bg-surface-raised">
               <SettingsBar />
             </div>
 
+            {/* Preview / Editor */}
+            <div className="flex-1 flex flex-col items-center justify-start p-6 overflow-auto bg-surface">
+              {/* Toggle for selection tool */}
+              <label className="flex items-center gap-2 mb-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={useSelectionTool}
+                  onChange={(e) => {
+                    setUseSelectionTool(e.target.checked);
+                    if (!e.target.checked) setSelectionMask(null);
+                  }}
+                  disabled={isEditing}
+                  className="w-4 h-4 rounded border-border bg-surface-overlay checked:bg-accent checked:border-accent accent-accent"
+                />
+                <span className="text-xs text-text-muted group-hover:text-text transition-colors">
+                  Use Selection Tool (draw on image to select areas)
+                </span>
+              </label>
+
+              {/* Conditional render: ImageEditor or static image */}
+              {useSelectionTool ? (
+                <div className="w-full max-w-4xl">
+                  <ImageEditor
+                    imageUrl={selectedImage.dataUrl}
+                    onMaskChange={setSelectionMask}
+                    disabled={isEditing}
+                  />
+                </div>
+              ) : (
+                <div className="relative max-w-full max-h-full">
+                  <img
+                    src={selectedImage.dataUrl}
+                    alt={selectedImage.prompt}
+                    className="max-w-full max-h-[50vh] rounded-xl object-contain border border-border cursor-pointer hover:border-border-focus transition-colors"
+                    onClick={() => setLightboxImage(selectedImage.id)}
+                    title="Click to view full size"
+                  />
+                  <div className="mt-2">
+                    <p className="text-xs text-text-muted truncate">{selectedImage.prompt}</p>
+                    <p className="text-[10px] text-text-dim">
+                      {selectedImage.settings.aspectRatio} &middot; {selectedImage.settings.imageSize}
+                      {selectedImage.parentImageId && ' &middot; Edited'}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Edit Controls */}
-            <div className="p-4 border-t border-border">
+            <div className="p-4 border-t border-border bg-surface-raised">
               <div className="flex gap-2 mb-3">
                 <div className="flex-1 flex flex-col gap-2">
                   <textarea
@@ -375,21 +408,16 @@ export function EditPanel() {
           imageUrl={lightboxImg.dataUrl}
           alt={lightboxImg.prompt}
           onClose={() => setLightboxImage(null)}
+          onEdit={() => {
+            dispatch({ type: 'SET_SELECTED_IMAGE', payload: lightboxImg.id });
+            setLightboxImage(null);
+          }}
           details={{
             title: lightboxImg.prompt,
             subtitle: `${lightboxImg.settings.aspectRatio} · ${lightboxImg.settings.imageSize} · ${new Date(lightboxImg.createdAt).toLocaleString()}${lightboxImg.parentImageId ? ' · Edited' : ''}`,
           }}
           actions={
             <>
-              <button
-                onClick={() => {
-                  dispatch({ type: 'SET_SELECTED_IMAGE', payload: lightboxImg.id });
-                  setLightboxImage(null);
-                }}
-                className="bg-accent hover:bg-accent-hover text-white text-xs px-3 py-1.5 rounded-lg"
-              >
-                Edit / Variations
-              </button>
               <button
                 onClick={() => {
                   const a = document.createElement('a');

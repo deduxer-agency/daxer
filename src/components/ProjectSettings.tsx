@@ -6,8 +6,8 @@ import { saveMultipleImageBlobs, deleteImageBlob } from '../db';
 import { Lightbox } from './Lightbox';
 import type { Character } from '../types';
 
-const MAX_REFERENCES = 20;
-const MAX_CHARACTERS = 20;
+const MAX_REFERENCES = 14; // Gemini 3 Pro Image supports up to 14 reference images
+const MAX_CHARACTERS = 5;  // Gemini 3 Pro Image supports up to 5 people with character consistency
 
 function isCharacter(item: any): item is Character {
   return 'label' in item;
@@ -306,7 +306,8 @@ export function ProjectSettings() {
             disabled={uploading}
             className="w-full border-2 border-dashed border-border hover:border-border-focus rounded-lg py-6 text-center text-xs text-text-dim hover:text-text-muted transition-colors disabled:opacity-50"
           >
-            Add character reference images for consistent character appearance
+            <div>Add character reference images for consistent character appearance</div>
+            <div className="text-[10px] text-warning mt-1">Maximum 5 people (Gemini 3 Pro Image limit)</div>
           </button>
         ) : (
           <div className="grid grid-cols-3 gap-3">

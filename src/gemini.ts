@@ -44,7 +44,8 @@ function buildParts(
   prompt: string,
   project: Project,
   settings: GenerationSettings,
-  sourceImage?: GeneratedImage
+  sourceImage?: GeneratedImage,
+  maskDataUrl?: string
 ): GeminiPart[] {
   const parts: GeminiPart[] = [];
 
@@ -62,25 +63,31 @@ function buildParts(
     fullPrompt += `Context: ${project.description}\n\n`;
   }
 
+  // Add character context with explicit instructions for character consistency
   if (project.characters.length > 0) {
-    fullPrompt += 'Character' + (project.characters.length > 1 ? 's' : '') + ': ';
-    fullPrompt += project.characters.map(char => char.label).join(', ');
-    fullPrompt += '\n\n';
+    fullPrompt += 'IMPORTANT: Maintain strict character consistency for the following character' +
+                  (project.characters.length > 1 ? 's' : '') + ':\n';
+
+    project.characters.forEach((char, index) => {
+      fullPrompt += `- ${char.label} (reference image ${index + 1})\n`;
+    });
+
+    fullPrompt += '\nGenerate the image with these exact characters, preserving their facial features, appearance, and identity from the reference images.\n\n';
+  }
+
+  // Add mask-aware instructions if mask provided
+  if (maskDataUrl) {
+    fullPrompt += `\n\nIMPORTANT: A selection mask image is provided showing the region to edit (white area on transparent background). `;
+    fullPrompt += `Focus your changes PRIMARILY on the white-highlighted region in the mask. `;
+    fullPrompt += `Keep other areas of the image as unchanged as possible.\n\n`;
   }
 
   fullPrompt += prompt;
 
   parts.push({ text: fullPrompt });
 
-  for (const ref of project.referenceImages) {
-    parts.push({
-      inline_data: {
-        mime_type: ref.mimeType,
-        data: stripDataUrlPrefix(ref.dataUrl),
-      },
-    });
-  }
-
+  // Add character reference images FIRST (before style references)
+  // This gives them priority for character consistency
   for (const char of project.characters) {
     parts.push({
       inline_data: {
@@ -90,6 +97,27 @@ function buildParts(
     });
   }
 
+  // Add style reference images after character images
+  for (const ref of project.referenceImages) {
+    parts.push({
+      inline_data: {
+        mime_type: ref.mimeType,
+        data: stripDataUrlPrefix(ref.dataUrl),
+      },
+    });
+  }
+
+  // Add mask image if provided (BEFORE source image for context ordering)
+  if (maskDataUrl) {
+    parts.push({
+      inline_data: {
+        mime_type: 'image/png',
+        data: stripDataUrlPrefix(maskDataUrl),
+      },
+    });
+  }
+
+  // Add source image last
   if (sourceImage) {
     parts.push({
       inline_data: {
@@ -212,11 +240,12 @@ export async function generateImage(
   settings: GenerationSettings,
   modelId: ModelId,
   sourceImage?: GeneratedImage,
+  maskDataUrl?: string,
   signal?: AbortSignal
 ): Promise<GeneratedImage> {
   const url = `${API_BASE}/${modelId}:generateContent`;
 
-  const parts = buildParts(prompt, project, settings, sourceImage);
+  const parts = buildParts(prompt, project, settings, sourceImage, maskDataUrl);
 
   // Build the request body — include generationConfig with responseModalities
   // to explicitly tell the model we want image output

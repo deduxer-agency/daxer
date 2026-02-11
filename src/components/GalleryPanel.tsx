@@ -180,22 +180,17 @@ export function GalleryPanel() {
           imageUrl={lightboxImg.dataUrl}
           alt={lightboxImg.prompt}
           onClose={() => setLightboxImage(null)}
+          onEdit={() => {
+            dispatch({ type: 'SET_SELECTED_IMAGE', payload: lightboxImg.id });
+            dispatch({ type: 'SET_VIEW', payload: 'edit' });
+            setLightboxImage(null);
+          }}
           details={{
             title: lightboxImg.prompt,
             subtitle: `${lightboxImg.settings.aspectRatio} · ${lightboxImg.settings.imageSize} · ${new Date(lightboxImg.createdAt).toLocaleString()}`,
           }}
           actions={
             <>
-              <button
-                onClick={() => {
-                  dispatch({ type: 'SET_SELECTED_IMAGE', payload: lightboxImg.id });
-                  dispatch({ type: 'SET_VIEW', payload: 'edit' });
-                  setLightboxImage(null);
-                }}
-                className="bg-accent hover:bg-accent-hover text-white text-xs px-3 py-1.5 rounded-lg"
-              >
-                Edit / Variations
-              </button>
               <button
                 onClick={() => {
                   const a = document.createElement('a');

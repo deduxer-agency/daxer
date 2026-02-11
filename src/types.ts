@@ -44,6 +44,7 @@ export interface GeneratedImage {
   settings: GenerationSettings;
   createdAt: number;
   parentImageId?: string;
+  maskDataUrl?: string; // Selection mask for targeted edits (not persisted)
 }
 
 export interface GenerationSettings {

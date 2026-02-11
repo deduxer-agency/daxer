@@ -85,6 +85,7 @@ export function GenerationPanel() {
           settings,
           state.modelId,
           undefined,
+          undefined,
           controller.signal
         );
 
