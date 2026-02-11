@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { v4 as uuid } from 'uuid';
 import { useStore } from '../store';
-import { generateImage } from '../gemini';
+import { generateImage, enhancePrompt } from '../gemini';
 import { saveImageBlob, deleteImageBlob } from '../db';
 import { SettingsBar } from './SettingsBar';
 import { ProjectSettings } from './ProjectSettings';
@@ -11,6 +11,9 @@ export function GenerationPanel() {
   const { state, dispatch, activeProject, projectImages } = useStore();
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [useAiEnhancement, setUseAiEnhancement] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [enhancedPrompt, setEnhancedPrompt] = useState<string | null>(null);
   const abortControllers = useRef<Map<string, AbortController>>(new Map());
 
   const activeRequests = state.generationQueue.filter(
@@ -22,7 +25,26 @@ export function GenerationPanel() {
 
     const settings: GenerationSettings = { ...state.defaultSettings };
     const count = settings.numberOfVariations;
-    const currentPrompt = prompt.trim();
+    let currentPrompt = prompt.trim();
+
+    // Enhance prompt if AI enhancement is enabled
+    if (useAiEnhancement) {
+      try {
+        setIsEnhancing(true);
+        const enhanced = await enhancePrompt(state.apiKey, currentPrompt);
+        currentPrompt = enhanced;
+        setEnhancedPrompt(enhanced);
+      } catch (error) {
+        console.error('Prompt enhancement failed:', error);
+        // Continue with original prompt if enhancement fails
+        alert(`Prompt enhancement failed: ${error instanceof Error ? error.message : 'Unknown error'}. Using original prompt.`);
+      } finally {
+        setIsEnhancing(false);
+      }
+    } else {
+      setEnhancedPrompt(null);
+    }
+
     setPrompt('');
     setIsGenerating(true);
 
@@ -90,7 +112,7 @@ export function GenerationPanel() {
 
     await Promise.allSettled(promises);
     setIsGenerating(false);
-  }, [prompt, activeProject, state.apiKey, state.modelId, state.defaultSettings, dispatch]);
+  }, [prompt, activeProject, state.apiKey, state.modelId, state.defaultSettings, dispatch, useAiEnhancement]);
 
   const cancelAll = () => {
     abortControllers.current.forEach((c) => c.abort());
@@ -124,26 +146,41 @@ export function GenerationPanel() {
       {/* Prompt Input */}
       <div className="p-4 border-b border-border">
         <div className="flex gap-2">
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                startGeneration();
-              }
-            }}
-            placeholder="Describe the image you want to generate..."
-            className="flex-1 bg-surface-overlay border border-border rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-border-focus resize-none h-16"
-            disabled={isGenerating}
-          />
+          <div className="flex-1 flex flex-col gap-2">
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  startGeneration();
+                }
+              }}
+              placeholder="Describe the image you want to generate..."
+              className="flex-1 bg-surface-overlay border border-border rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-border-focus resize-none h-16"
+              disabled={isGenerating || isEnhancing}
+            />
+            {/* AI Enhancement Checkbox */}
+            <label className="flex items-center gap-2 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={useAiEnhancement}
+                onChange={(e) => setUseAiEnhancement(e.target.checked)}
+                disabled={isGenerating || isEnhancing}
+                className="w-4 h-4 rounded border-border bg-surface-overlay checked:bg-accent checked:border-accent focus:ring-2 focus:ring-accent/20 disabled:opacity-50 cursor-pointer"
+              />
+              <span className="text-xs text-text-muted group-hover:text-text transition-colors">
+                ✨ AI Enhance Prompt {isEnhancing && '(enhancing...)'}
+              </span>
+            </label>
+          </div>
           <div className="flex flex-col gap-1">
             <button
               onClick={startGeneration}
-              disabled={!prompt.trim() || isGenerating || !state.apiKey}
+              disabled={!prompt.trim() || isGenerating || isEnhancing || !state.apiKey}
               className="bg-accent hover:bg-accent-hover disabled:bg-surface-overlay disabled:text-text-dim text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors flex-1"
             >
-              {isGenerating ? 'Generating...' : 'Generate'}
+              {isEnhancing ? 'Enhancing...' : isGenerating ? 'Generating...' : 'Generate'}
             </button>
             {isGenerating && (
               <button
@@ -157,6 +194,12 @@ export function GenerationPanel() {
         </div>
         {!state.apiKey && (
           <p className="text-xs text-warning mt-1">Add your Gemini API key in the sidebar first</p>
+        )}
+        {enhancedPrompt && (
+          <div className="mt-2 p-2 bg-accent/10 border border-accent/30 rounded-lg">
+            <p className="text-xs text-accent font-medium mb-1">✨ Enhanced Prompt:</p>
+            <p className="text-xs text-text-muted">{enhancedPrompt}</p>
+          </div>
         )}
         <p className="text-xs text-text-dim mt-1">
           Cmd+Enter to generate &middot; {state.defaultSettings.numberOfVariations} variations

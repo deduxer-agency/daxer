@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useStore } from '../store';
-import { generateImage } from '../gemini';
+import { generateImage, enhancePrompt } from '../gemini';
 import { saveImageBlob } from '../db';
 import { SettingsBar } from './SettingsBar';
 import { Lightbox } from './Lightbox';
@@ -10,6 +10,9 @@ export function EditPanel() {
   const { state, dispatch, activeProject, projectImages } = useStore();
   const [editPrompt, setEditPrompt] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [useAiEnhancement, setUseAiEnhancement] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [enhancedPrompt, setEnhancedPrompt] = useState<string | null>(null);
   const [variationResults, setVariationResults] = useState<GeneratedImage[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -28,6 +31,25 @@ export function EditPanel() {
 
     const settings: GenerationSettings = { ...state.defaultSettings };
     const count = settings.numberOfVariations;
+    let currentPrompt = editPrompt.trim();
+
+    // Enhance prompt if AI enhancement is enabled
+    if (useAiEnhancement) {
+      try {
+        setIsEnhancing(true);
+        const enhanced = await enhancePrompt(state.apiKey, currentPrompt);
+        currentPrompt = enhanced;
+        setEnhancedPrompt(enhanced);
+      } catch (error) {
+        console.error('Prompt enhancement failed:', error);
+        alert(`Prompt enhancement failed: ${error instanceof Error ? error.message : 'Unknown error'}. Using original prompt.`);
+      } finally {
+        setIsEnhancing(false);
+      }
+    } else {
+      setEnhancedPrompt(null);
+    }
+
     setIsEditing(true);
     setVariationResults([]);
     setErrors([]);
@@ -42,7 +64,7 @@ export function EditPanel() {
       try {
         const result = await generateImage(
           state.apiKey,
-          editPrompt.trim(),
+          currentPrompt,
           activeProject,
           settings,
           state.modelId,
@@ -65,7 +87,7 @@ export function EditPanel() {
     await Promise.allSettled(promises);
     setIsEditing(false);
     abortControllers.current = [];
-  }, [editPrompt, selectedImage, activeProject, state.apiKey, state.modelId, state.defaultSettings, dispatch]);
+  }, [editPrompt, selectedImage, activeProject, state.apiKey, state.modelId, state.defaultSettings, dispatch, useAiEnhancement]);
 
   const cancelEdit = () => {
     abortControllers.current.forEach((c) => c.abort());
@@ -204,30 +226,45 @@ export function EditPanel() {
             {/* Edit Controls */}
             <div className="p-4 border-t border-border">
               <div className="flex gap-2 mb-3">
-                <textarea
-                  value={editPrompt}
-                  onChange={(e) => setEditPrompt(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                      e.preventDefault();
-                      handleEdit();
-                    }
-                  }}
-                  placeholder="Describe how to edit this image... e.g., 'change the background to a sunset', 'make it more vibrant', 'add a hat'"
-                  className="flex-1 bg-surface-overlay border border-border rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-border-focus resize-none h-14"
-                  disabled={isEditing}
-                />
+                <div className="flex-1 flex flex-col gap-2">
+                  <textarea
+                    value={editPrompt}
+                    onChange={(e) => setEditPrompt(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        handleEdit();
+                      }
+                    }}
+                    placeholder="Describe how to edit this image... e.g., 'change the background to a sunset', 'make it more vibrant', 'add a hat'"
+                    className="flex-1 bg-surface-overlay border border-border rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-border-focus resize-none h-14"
+                    disabled={isEditing || isEnhancing}
+                  />
+                  {/* AI Enhancement Checkbox */}
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={useAiEnhancement}
+                      onChange={(e) => setUseAiEnhancement(e.target.checked)}
+                      disabled={isEditing || isEnhancing}
+                      className="w-4 h-4 rounded border-border bg-surface-overlay checked:bg-accent checked:border-accent focus:ring-2 focus:ring-accent/20 disabled:opacity-50 cursor-pointer"
+                    />
+                    <span className="text-xs text-text-muted group-hover:text-text transition-colors">
+                      ✨ AI Enhance Prompt {isEnhancing && '(enhancing...)'}
+                    </span>
+                  </label>
+                </div>
                 <div className="flex flex-col gap-1">
                   <button
                     onClick={handleEdit}
-                    disabled={!editPrompt.trim() || isEditing || !state.apiKey}
+                    disabled={!editPrompt.trim() || isEditing || isEnhancing || !state.apiKey}
                     className="bg-accent hover:bg-accent-hover disabled:bg-surface-overlay disabled:text-text-dim text-white text-xs font-medium px-4 py-1.5 rounded-lg transition-colors"
                   >
-                    {isEditing ? 'Editing...' : 'Edit Image'}
+                    {isEnhancing ? 'Enhancing...' : isEditing ? 'Editing...' : 'Edit Image'}
                   </button>
                   <button
                     onClick={generateVariationsOnly}
-                    disabled={isEditing || !state.apiKey}
+                    disabled={isEditing || isEnhancing || !state.apiKey}
                     className="bg-surface-overlay hover:bg-surface-raised disabled:text-text-dim border border-border text-text text-xs font-medium px-4 py-1.5 rounded-lg transition-colors"
                   >
                     Variations
@@ -239,6 +276,13 @@ export function EditPanel() {
                   )}
                 </div>
               </div>
+
+              {enhancedPrompt && (
+                <div className="mb-2 p-2 bg-accent/10 border border-accent/30 rounded-lg">
+                  <p className="text-xs text-accent font-medium mb-1">✨ Enhanced Prompt:</p>
+                  <p className="text-xs text-text-muted">{enhancedPrompt}</p>
+                </div>
+              )}
 
               {/* Quick edit presets */}
               <div className="flex flex-wrap gap-1.5">
