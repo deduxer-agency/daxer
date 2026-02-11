@@ -45,6 +45,7 @@ export interface GeneratedImage {
   createdAt: number;
   parentImageId?: string;
   maskDataUrl?: string; // Selection mask for targeted edits (not persisted)
+  batchId?: string; // Groups images generated together in the same session
 }
 
 export interface GenerationSettings {

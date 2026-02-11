@@ -40,16 +40,16 @@ export function SettingsBar() {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-4">
+    <div className="space-y-3">
       {/* Model */}
-      <div className="flex items-center gap-2">
-        <label className="text-xs text-text-muted whitespace-nowrap">Model</label>
+      <div className="space-y-1.5">
+        <label className="text-xs text-text-muted">Model</label>
         <select
           value={state.modelId}
           onChange={(e) =>
             dispatch({ type: 'SET_MODEL_ID', payload: e.target.value as ModelId })
           }
-          className="bg-surface-overlay border border-border rounded px-2 py-1 text-xs text-text outline-none focus:border-border-focus cursor-pointer"
+          className="w-full bg-surface-overlay border border-border rounded px-2 py-1.5 text-xs text-text outline-none focus:border-border-focus cursor-pointer"
         >
           {getAvailableModels().map((m) => (
             <option key={m} value={m}>
@@ -60,8 +60,8 @@ export function SettingsBar() {
       </div>
 
       {/* Style Preset */}
-      <div className="flex items-center gap-2">
-        <label className="text-xs text-text-muted whitespace-nowrap">Style</label>
+      <div className="space-y-1.5">
+        <label className="text-xs text-text-muted">Style</label>
         <select
           value={settings.stylePreset}
           onChange={(e) =>
@@ -70,7 +70,7 @@ export function SettingsBar() {
               payload: { stylePreset: e.target.value as StylePreset },
             })
           }
-          className="bg-surface-overlay border border-border rounded px-2 py-1 text-xs text-text outline-none focus:border-border-focus cursor-pointer"
+          className="w-full bg-surface-overlay border border-border rounded px-2 py-1.5 text-xs text-text outline-none focus:border-border-focus cursor-pointer"
         >
           {STYLE_PRESETS.map((preset) => (
             <option key={preset.value} value={preset.value}>
@@ -81,8 +81,8 @@ export function SettingsBar() {
       </div>
 
       {/* Aspect Ratio */}
-      <div className="flex items-center gap-2">
-        <label className="text-xs text-text-muted whitespace-nowrap">Ratio</label>
+      <div className="space-y-1.5">
+        <label className="text-xs text-text-muted">Aspect Ratio</label>
         <select
           value={settings.aspectRatio}
           onChange={(e) =>
@@ -91,7 +91,7 @@ export function SettingsBar() {
               payload: { aspectRatio: e.target.value as AspectRatio },
             })
           }
-          className="bg-surface-overlay border border-border rounded px-2 py-1 text-xs text-text outline-none focus:border-border-focus cursor-pointer"
+          className="w-full bg-surface-overlay border border-border rounded px-2 py-1.5 text-xs text-text outline-none focus:border-border-focus cursor-pointer"
         >
           {ASPECT_RATIOS.map((r) => (
             <option key={r} value={r}>
@@ -102,8 +102,8 @@ export function SettingsBar() {
       </div>
 
       {/* Image Size */}
-      <div className="flex items-center gap-1.5">
-        <label className="text-xs text-text-muted whitespace-nowrap">Size</label>
+      <div className="space-y-1.5">
+        <label className="text-xs text-text-muted">Size</label>
         <div className="flex rounded-lg border border-border overflow-hidden">
           {IMAGE_SIZES.map((size) => (
             <button
@@ -114,7 +114,7 @@ export function SettingsBar() {
                   payload: { imageSize: size.value },
                 })
               }
-              className={`px-2.5 py-1 text-xs transition-colors ${
+              className={`flex-1 px-2.5 py-1.5 text-xs transition-colors ${
                 settings.imageSize === size.value
                   ? 'bg-accent text-white'
                   : 'bg-surface-overlay text-text-muted hover:text-text'
@@ -127,8 +127,11 @@ export function SettingsBar() {
       </div>
 
       {/* Temperature */}
-      <div className="flex items-center gap-2">
-        <label className="text-xs text-text-muted whitespace-nowrap">Creativity</label>
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <label className="text-xs text-text-muted">Creativity</label>
+          <span className="text-xs text-text-dim">{settings.temperature}</span>
+        </div>
         <input
           type="range"
           min="0"
@@ -141,14 +144,13 @@ export function SettingsBar() {
               payload: { temperature: parseFloat(e.target.value) },
             })
           }
-          className="w-20"
+          className="w-full"
         />
-        <span className="text-xs text-text-dim w-6 text-right">{settings.temperature}</span>
       </div>
 
       {/* Number of Variations */}
-      <div className="flex items-center gap-1.5">
-        <label className="text-xs text-text-muted whitespace-nowrap">Variations</label>
+      <div className="space-y-1.5">
+        <label className="text-xs text-text-muted">Variations</label>
         <div className="flex rounded-lg border border-border overflow-hidden">
           {[1, 2, 3, 4, 6].map((n) => (
             <button
@@ -159,7 +161,7 @@ export function SettingsBar() {
                   payload: { numberOfVariations: n },
                 })
               }
-              className={`px-2 py-1 text-xs transition-colors ${
+              className={`flex-1 px-2 py-1.5 text-xs transition-colors ${
                 settings.numberOfVariations === n
                   ? 'bg-accent text-white'
                   : 'bg-surface-overlay text-text-muted hover:text-text'
