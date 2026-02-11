@@ -32,14 +32,27 @@ function getMimeFromDataUrl(dataUrl: string): string {
   return match ? match[1] : 'image/png';
 }
 
+const STYLE_PRESET_PROMPTS: Record<string, string> = {
+  photorealistic: 'Professional photorealistic style with studio lighting, high detail, sharp focus, and realistic textures',
+  illustration: 'Hand-drawn or digital illustration style with artistic interpretation and creative expression',
+  'graphic-design': 'Modern graphic design aesthetic with clean lines, bold colors, and professional layout',
+  'casual-startup': 'Relaxed and approachable style with casual vibes, friendly aesthetics, and startup energy',
+  artistic: 'Creative and expressive artistic interpretation with unique style and artistic flair',
+};
+
 function buildParts(
   prompt: string,
   project: Project,
+  settings: GenerationSettings,
   sourceImage?: GeneratedImage
 ): GeminiPart[] {
   const parts: GeminiPart[] = [];
 
   let fullPrompt = '';
+
+  if (settings.stylePreset !== 'none' && STYLE_PRESET_PROMPTS[settings.stylePreset]) {
+    fullPrompt += `${STYLE_PRESET_PROMPTS[settings.stylePreset]}\n\n`;
+  }
 
   if (project.stylePrompt) {
     fullPrompt += `Style: ${project.stylePrompt}\n\n`;
@@ -47,6 +60,12 @@ function buildParts(
 
   if (project.description) {
     fullPrompt += `Context: ${project.description}\n\n`;
+  }
+
+  if (project.characters.length > 0) {
+    fullPrompt += 'Character' + (project.characters.length > 1 ? 's' : '') + ': ';
+    fullPrompt += project.characters.map(char => char.label).join(', ');
+    fullPrompt += '\n\n';
   }
 
   fullPrompt += prompt;
@@ -58,6 +77,15 @@ function buildParts(
       inline_data: {
         mime_type: ref.mimeType,
         data: stripDataUrlPrefix(ref.dataUrl),
+      },
+    });
+  }
+
+  for (const char of project.characters) {
+    parts.push({
+      inline_data: {
+        mime_type: char.mimeType,
+        data: stripDataUrlPrefix(char.dataUrl),
       },
     });
   }
@@ -110,7 +138,7 @@ export async function generateImage(
 ): Promise<GeneratedImage> {
   const url = `${API_BASE}/${modelId}:generateContent`;
 
-  const parts = buildParts(prompt, project, sourceImage);
+  const parts = buildParts(prompt, project, settings, sourceImage);
 
   // Build the request body — include generationConfig with responseModalities
   // to explicitly tell the model we want image output

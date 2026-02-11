@@ -3,6 +3,7 @@ import { useStore } from '../store';
 import { generateImage } from '../gemini';
 import { saveImageBlob } from '../db';
 import { SettingsBar } from './SettingsBar';
+import { Lightbox } from './Lightbox';
 import type { GenerationSettings, GeneratedImage } from '../types';
 
 export function EditPanel() {
@@ -11,10 +12,15 @@ export function EditPanel() {
   const [isEditing, setIsEditing] = useState(false);
   const [variationResults, setVariationResults] = useState<GeneratedImage[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const abortControllers = useRef<AbortController[]>([]);
 
   const selectedImage = state.selectedImageId
     ? projectImages.find((img) => img.id === state.selectedImageId) || null
+    : null;
+
+  const lightboxImg = lightboxImage
+    ? projectImages.find((img) => img.id === lightboxImage) || variationResults.find((img) => img.id === lightboxImage) || null
     : null;
 
   const handleEdit = useCallback(async () => {
@@ -153,6 +159,11 @@ export function EditPanel() {
                     src={img.dataUrl}
                     alt={img.prompt}
                     className="w-full h-full object-cover"
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      setLightboxImage(img.id);
+                    }}
+                    title="Double-click to view full size"
                   />
                 </div>
               ))}
@@ -171,7 +182,9 @@ export function EditPanel() {
                 <img
                   src={selectedImage.dataUrl}
                   alt={selectedImage.prompt}
-                  className="max-w-full max-h-[50vh] rounded-xl object-contain border border-border"
+                  className="max-w-full max-h-[50vh] rounded-xl object-contain border border-border cursor-pointer hover:border-border-focus transition-colors"
+                  onClick={() => setLightboxImage(selectedImage.id)}
+                  title="Click to view full size"
                 />
                 <div className="mt-2">
                   <p className="text-xs text-text-muted truncate">{selectedImage.prompt}</p>
@@ -293,6 +306,11 @@ export function EditPanel() {
                         src={img.dataUrl}
                         alt={img.prompt}
                         className="w-full h-full object-cover"
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          setLightboxImage(img.id);
+                        }}
+                        title="Double-click to view full size"
                       />
                     </div>
                   ))}
@@ -306,6 +324,43 @@ export function EditPanel() {
           </div>
         )}
       </div>
+
+      {/* Lightbox */}
+      {lightboxImg && (
+        <Lightbox
+          imageUrl={lightboxImg.dataUrl}
+          alt={lightboxImg.prompt}
+          onClose={() => setLightboxImage(null)}
+          details={{
+            title: lightboxImg.prompt,
+            subtitle: `${lightboxImg.settings.aspectRatio} · ${lightboxImg.settings.imageSize} · ${new Date(lightboxImg.createdAt).toLocaleString()}${lightboxImg.parentImageId ? ' · Edited' : ''}`,
+          }}
+          actions={
+            <>
+              <button
+                onClick={() => {
+                  dispatch({ type: 'SET_SELECTED_IMAGE', payload: lightboxImg.id });
+                  setLightboxImage(null);
+                }}
+                className="bg-accent hover:bg-accent-hover text-white text-xs px-3 py-1.5 rounded-lg"
+              >
+                Edit / Variations
+              </button>
+              <button
+                onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = lightboxImg.dataUrl;
+                  a.download = `daxer-${lightboxImg.id.slice(0, 8)}.png`;
+                  a.click();
+                }}
+                className="bg-surface-overlay hover:bg-surface-raised text-white text-xs px-3 py-1.5 rounded-lg border border-border"
+              >
+                Download
+              </button>
+            </>
+          }
+        />
+      )}
     </div>
   );
 }

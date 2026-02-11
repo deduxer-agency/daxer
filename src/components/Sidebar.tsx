@@ -135,10 +135,11 @@ export function Sidebar() {
                   onClick={() => {
                     if (confirm(`Delete "${project.name}"?`)) {
                       const refIds = project.referenceImages.map((r) => r.id);
+                      const charIds = project.characters.map((c) => c.id);
                       const genIds = state.generatedImages
                         .filter((img) => img.projectId === project.id)
                         .map((img) => img.id);
-                      const allIds = [...refIds, ...genIds];
+                      const allIds = [...refIds, ...charIds, ...genIds];
                       if (allIds.length > 0) {
                         deleteMultipleImageBlobs(allIds).catch(() => {});
                       }

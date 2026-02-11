@@ -4,12 +4,21 @@ export interface Project {
   description: string;
   stylePrompt: string;
   referenceImages: ReferenceImage[];
+  characters: Character[];
   createdAt: number;
   updatedAt: number;
 }
 
 export interface ReferenceImage {
   id: string;
+  name: string;
+  dataUrl: string;
+  mimeType: string;
+}
+
+export interface Character {
+  id: string;
+  label: string;
   name: string;
   dataUrl: string;
   mimeType: string;
@@ -42,7 +51,16 @@ export interface GenerationSettings {
   imageSize: ImageSize;
   temperature: number;
   numberOfVariations: number;
+  stylePreset: StylePreset;
 }
+
+export type StylePreset =
+  | 'none'
+  | 'photorealistic'
+  | 'illustration'
+  | 'graphic-design'
+  | 'casual-startup'
+  | 'artistic';
 
 export type AspectRatio =
   | '1:1'

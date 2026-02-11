@@ -6,6 +6,7 @@ import type {
   GenerationRequest,
   GenerationSettings,
   ReferenceImage,
+  Character,
 } from './types';
 import type { ModelId } from './gemini';
 import {
@@ -34,6 +35,7 @@ const DEFAULT_SETTINGS: GenerationSettings = {
   imageSize: '2K',
   temperature: 1,
   numberOfVariations: 3,
+  stylePreset: 'none',
 };
 
 // ---- localStorage: metadata only (no image data) ----
@@ -50,7 +52,17 @@ interface SavedState {
 function loadState(): SavedState {
   try {
     const raw = localStorage.getItem('daxer-studio-state');
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Migrate old projects to include characters array
+      if (parsed.projects) {
+        parsed.projects = parsed.projects.map((p: any) => ({
+          ...p,
+          characters: p.characters || [],
+        }));
+      }
+      return parsed;
+    }
   } catch {}
   return {};
 }
@@ -61,6 +73,10 @@ function saveState(state: AppState) {
     ...p,
     referenceImages: p.referenceImages.map((img) => ({
       ...img,
+      dataUrl: '', // stored in IndexedDB
+    })),
+    characters: p.characters.map((char) => ({
+      ...char,
       dataUrl: '', // stored in IndexedDB
     })),
   }));
@@ -114,6 +130,10 @@ type Action =
   | { type: 'ADD_REFERENCE_IMAGE'; payload: { projectId: string; image: ReferenceImage } }
   | { type: 'ADD_REFERENCE_IMAGES_BATCH'; payload: { projectId: string; images: ReferenceImage[] } }
   | { type: 'REMOVE_REFERENCE_IMAGE'; payload: { projectId: string; imageId: string } }
+  | { type: 'ADD_CHARACTER'; payload: { projectId: string; character: Character } }
+  | { type: 'ADD_CHARACTERS_BATCH'; payload: { projectId: string; characters: Character[] } }
+  | { type: 'REMOVE_CHARACTER'; payload: { projectId: string; characterId: string } }
+  | { type: 'UPDATE_CHARACTER_LABEL'; payload: { projectId: string; characterId: string; label: string } }
   | { type: 'ADD_GENERATION_REQUEST'; payload: GenerationRequest }
   | { type: 'UPDATE_GENERATION_REQUEST'; payload: Partial<GenerationRequest> & { id: string } }
   | { type: 'REMOVE_GENERATION_REQUEST'; payload: string }
@@ -203,6 +223,68 @@ function reducer(state: AppState, action: Action): AppState {
         ),
       };
 
+    case 'ADD_CHARACTER':
+      return {
+        ...state,
+        projects: state.projects.map((p) =>
+          p.id === action.payload.projectId
+            ? {
+                ...p,
+                characters: [...p.characters, action.payload.character],
+                updatedAt: Date.now(),
+              }
+            : p
+        ),
+      };
+
+    case 'ADD_CHARACTERS_BATCH':
+      return {
+        ...state,
+        projects: state.projects.map((p) =>
+          p.id === action.payload.projectId
+            ? {
+                ...p,
+                characters: [...p.characters, ...action.payload.characters],
+                updatedAt: Date.now(),
+              }
+            : p
+        ),
+      };
+
+    case 'REMOVE_CHARACTER':
+      return {
+        ...state,
+        projects: state.projects.map((p) =>
+          p.id === action.payload.projectId
+            ? {
+                ...p,
+                characters: p.characters.filter(
+                  (char) => char.id !== action.payload.characterId
+                ),
+                updatedAt: Date.now(),
+              }
+            : p
+        ),
+      };
+
+    case 'UPDATE_CHARACTER_LABEL':
+      return {
+        ...state,
+        projects: state.projects.map((p) =>
+          p.id === action.payload.projectId
+            ? {
+                ...p,
+                characters: p.characters.map((char) =>
+                  char.id === action.payload.characterId
+                    ? { ...char, label: action.payload.label }
+                    : char
+                ),
+                updatedAt: Date.now(),
+              }
+            : p
+        ),
+      };
+
     case 'ADD_GENERATION_REQUEST':
       return { ...state, generationQueue: [...state.generationQueue, action.payload] };
 
@@ -246,7 +328,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'HYDRATE_IMAGE_BLOBS': {
       const { imageMap } = action.payload;
 
-      // Restore dataUrls to reference images and generated images
+      // Restore dataUrls to reference images, characters, and generated images
       const projects = state.projects.map((p) => ({
         ...p,
         referenceImages: p.referenceImages
@@ -256,6 +338,12 @@ function reducer(state: AppState, action: Action): AppState {
           }))
           // Remove references whose blobs are missing (orphaned metadata)
           .filter((img) => img.dataUrl),
+        characters: p.characters
+          .map((char) => ({
+            ...char,
+            dataUrl: imageMap.get(char.id) || char.dataUrl,
+          }))
+          .filter((char) => char.dataUrl),
       }));
 
       const generatedImages = state.generatedImages
@@ -305,6 +393,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         for (const project of state.projects) {
           for (const img of project.referenceImages) {
             if (!img.dataUrl) ids.push(img.id);
+          }
+          for (const char of project.characters) {
+            if (!char.dataUrl) ids.push(char.id);
           }
         }
         for (const img of state.generatedImages) {
@@ -363,6 +454,7 @@ export function createNewProject(name: string): Project {
     description: '',
     stylePrompt: '',
     referenceImages: [],
+    characters: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };

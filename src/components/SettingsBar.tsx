@@ -1,6 +1,15 @@
 import { useStore } from '../store';
 import { getAvailableModels, type ModelId } from '../gemini';
-import type { AspectRatio, ImageSize } from '../types';
+import type { AspectRatio, ImageSize, StylePreset } from '../types';
+
+const STYLE_PRESETS: { value: StylePreset; label: string }[] = [
+  { value: 'none', label: 'Default' },
+  { value: 'photorealistic', label: 'Photorealistic' },
+  { value: 'illustration', label: 'Illustration' },
+  { value: 'graphic-design', label: 'Graphic Design' },
+  { value: 'casual-startup', label: 'Casual/Startup' },
+  { value: 'artistic', label: 'Artistic' },
+];
 
 const ASPECT_RATIOS: AspectRatio[] = [
   '1:1',
@@ -45,6 +54,27 @@ export function SettingsBar() {
           {getAvailableModels().map((m) => (
             <option key={m} value={m}>
               {MODEL_LABELS[m] || m}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Style Preset */}
+      <div className="flex items-center gap-2">
+        <label className="text-xs text-text-muted whitespace-nowrap">Style</label>
+        <select
+          value={settings.stylePreset}
+          onChange={(e) =>
+            dispatch({
+              type: 'SET_DEFAULT_SETTINGS',
+              payload: { stylePreset: e.target.value as StylePreset },
+            })
+          }
+          className="bg-surface-overlay border border-border rounded px-2 py-1 text-xs text-text outline-none focus:border-border-focus cursor-pointer"
+        >
+          {STYLE_PRESETS.map((preset) => (
+            <option key={preset.value} value={preset.value}>
+              {preset.label}
             </option>
           ))}
         </select>

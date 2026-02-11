@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store';
 import { deleteImageBlob } from '../db';
+import { Lightbox } from './Lightbox';
 
 export function GalleryPanel() {
   const { dispatch, activeProject, projectImages } = useStore();
@@ -175,59 +176,40 @@ export function GalleryPanel() {
 
       {/* Lightbox */}
       {lightboxImg && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-8"
-          onClick={() => setLightboxImage(null)}
-        >
-          <div
-            className="relative max-w-[85vw] max-h-[85vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <img
-              src={lightboxImg.dataUrl}
-              alt={lightboxImg.prompt}
-              className="max-w-full max-h-[80vh] rounded-xl object-contain"
-            />
-            <div className="mt-3 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm text-white">{lightboxImg.prompt}</p>
-                <p className="text-xs text-white/50 mt-1">
-                  {lightboxImg.settings.aspectRatio} &middot; {lightboxImg.settings.imageSize}{' '}
-                  &middot; {new Date(lightboxImg.createdAt).toLocaleString()}
-                </p>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <button
-                  onClick={() => {
-                    dispatch({ type: 'SET_SELECTED_IMAGE', payload: lightboxImg.id });
-                    dispatch({ type: 'SET_VIEW', payload: 'edit' });
-                    setLightboxImage(null);
-                  }}
-                  className="bg-accent hover:bg-accent-hover text-white text-xs px-3 py-1.5 rounded-lg"
-                >
-                  Edit / Variations
-                </button>
-                <button
-                  onClick={() => {
-                    const a = document.createElement('a');
-                    a.href = lightboxImg.dataUrl;
-                    a.download = `daxer-${lightboxImg.id.slice(0, 8)}.png`;
-                    a.click();
-                  }}
-                  className="bg-surface-overlay hover:bg-surface-raised text-white text-xs px-3 py-1.5 rounded-lg border border-border"
-                >
-                  Download
-                </button>
-                <button
-                  onClick={() => setLightboxImage(null)}
-                  className="text-white/50 hover:text-white text-sm px-2"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <Lightbox
+          imageUrl={lightboxImg.dataUrl}
+          alt={lightboxImg.prompt}
+          onClose={() => setLightboxImage(null)}
+          details={{
+            title: lightboxImg.prompt,
+            subtitle: `${lightboxImg.settings.aspectRatio} · ${lightboxImg.settings.imageSize} · ${new Date(lightboxImg.createdAt).toLocaleString()}`,
+          }}
+          actions={
+            <>
+              <button
+                onClick={() => {
+                  dispatch({ type: 'SET_SELECTED_IMAGE', payload: lightboxImg.id });
+                  dispatch({ type: 'SET_VIEW', payload: 'edit' });
+                  setLightboxImage(null);
+                }}
+                className="bg-accent hover:bg-accent-hover text-white text-xs px-3 py-1.5 rounded-lg"
+              >
+                Edit / Variations
+              </button>
+              <button
+                onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = lightboxImg.dataUrl;
+                  a.download = `daxer-${lightboxImg.id.slice(0, 8)}.png`;
+                  a.click();
+                }}
+                className="bg-surface-overlay hover:bg-surface-raised text-white text-xs px-3 py-1.5 rounded-lg border border-border"
+              >
+                Download
+              </button>
+            </>
+          }
+        />
       )}
     </div>
   );
