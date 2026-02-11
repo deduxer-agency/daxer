@@ -5,6 +5,7 @@ import { generateImage, enhancePrompt } from '../gemini';
 import { saveImageBlob, deleteImageBlob } from '../db';
 import { SettingsBar } from './SettingsBar';
 import { ProjectSettings } from './ProjectSettings';
+import { Lightbox } from './Lightbox';
 import type { GenerationSettings } from '../types';
 
 export function GenerationPanel() {
@@ -14,6 +15,7 @@ export function GenerationPanel() {
   const [useAiEnhancement, setUseAiEnhancement] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [enhancedPrompt, setEnhancedPrompt] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const abortControllers = useRef<Map<string, AbortController>>(new Map());
 
   const activeRequests = state.generationQueue.filter(
@@ -152,6 +154,10 @@ export function GenerationPanel() {
     const bTime = Math.max(...b[1].map(img => img.createdAt));
     return bTime - aTime;
   });
+
+  const lightboxImg = lightboxImage
+    ? projectImages.find((img) => img.id === lightboxImage)
+    : null;
 
   return (
     <div className="flex-1 flex h-full overflow-hidden">
@@ -294,14 +300,8 @@ export function GenerationPanel() {
                   {images.map((img) => (
                     <div
                       key={img.id}
-                      className={`group relative w-64 aspect-square rounded-lg overflow-hidden cursor-pointer transition-all ${
-                        state.selectedImageId === img.id
-                          ? 'ring-2 ring-accent shadow-lg'
-                          : 'hover:ring-2 hover:ring-border-focus'
-                      }`}
-                      onClick={() => {
-                        dispatch({ type: 'SET_SELECTED_IMAGE', payload: img.id });
-                      }}
+                      className="group relative w-64 aspect-square rounded-lg overflow-hidden cursor-pointer transition-all hover:ring-2 hover:ring-border-focus"
+                      onClick={() => setLightboxImage(img.id)}
                     >
                       <img
                         src={img.dataUrl}
@@ -379,6 +379,51 @@ export function GenerationPanel() {
           <ProjectSettings />
         </div>
       </div>
+
+      {/* Lightbox */}
+      {lightboxImg && (
+        <Lightbox
+          imageUrl={lightboxImg.dataUrl}
+          alt={lightboxImg.prompt}
+          onClose={() => setLightboxImage(null)}
+          onEdit={() => {
+            dispatch({ type: 'SET_SELECTED_IMAGE', payload: lightboxImg.id });
+            dispatch({ type: 'SET_VIEW', payload: 'edit' });
+            setLightboxImage(null);
+          }}
+          details={{
+            title: lightboxImg.prompt,
+            subtitle: `${lightboxImg.settings.aspectRatio} · ${lightboxImg.settings.imageSize} · ${new Date(lightboxImg.createdAt).toLocaleString()}`,
+          }}
+          actions={
+            <>
+              <button
+                onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = lightboxImg.dataUrl;
+                  a.download = `daxer-${lightboxImg.id.slice(0, 8)}.png`;
+                  a.click();
+                }}
+                className="bg-surface-overlay hover:bg-surface-raised text-white text-xs px-3 py-1.5 rounded-lg border border-border"
+              >
+                Download
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm('Are you sure you want to delete this image?')) {
+                    dispatch({ type: 'DELETE_GENERATED_IMAGE', payload: lightboxImg.id });
+                    deleteImageBlob(lightboxImg.id).catch(() => {});
+                    setLightboxImage(null);
+                  }
+                }}
+                className="bg-danger/90 hover:bg-danger text-white text-xs px-3 py-1.5 rounded-lg"
+              >
+                Delete
+              </button>
+            </>
+          }
+        />
+      )}
     </div>
   );
 }
